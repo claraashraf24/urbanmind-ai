@@ -1,0 +1,1 @@
+from app.models.city_alert import CityAlert

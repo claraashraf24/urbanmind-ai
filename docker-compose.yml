@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    container_name: urbanmind_postgres
+    environment:
+      POSTGRES_USER: urbanmind
+      POSTGRES_PASSWORD: urbanmind
+      POSTGRES_DB: urbanmind_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - urbanmind_postgres_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    container_name: urbanmind_redis
+    ports:
+      - "6379:6379"
+
+volumes:
+  urbanmind_postgres_data:
