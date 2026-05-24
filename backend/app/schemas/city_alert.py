@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Any
 
 
 class CityAlertCreate(BaseModel):
@@ -12,6 +12,7 @@ class CityAlertCreate(BaseModel):
     description: Optional[str] = None
     source: str = "system"
     risk_score: float = 0.0
+    raw_payload: Optional[dict[str, Any]] = None
 
 
 class CityAlertResponse(CityAlertCreate):
@@ -21,4 +22,3 @@ class CityAlertResponse(CityAlertCreate):
 
     class Config:
         from_attributes = True
-        

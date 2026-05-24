@@ -1,21 +1,24 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi import WebSocket, WebSocketDisconnect
-from app.websocket.connection_manager import manager
 import asyncio
-from app.database import SessionLocal
-from app.models.city_alert import CityAlert
-from app.services.city_event_simulator import generate_city_event
-from app.websocket.connection_manager import manager
 
-from app.routers import city_alerts
-from app.routers import analytics
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.database import Base, engine
+from app.routers import analytics, city_alerts
+from app.websocket.connection_manager import manager
+from app.ingestion.save_ingested_alerts import ingest_and_save_events
+
+
+Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="UrbanMind AI Backend")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -25,13 +28,85 @@ app.include_router(city_alerts.router)
 app.include_router(analytics.router)
 
 
+async def real_city_ingestion_stream():
+    """
+    Background loop:
+    - Pulls real city data from Open-Meteo, TTC GTFS-RT, and Toronto Road Restrictions
+    - Saves only new alerts
+    - Broadcasts new high/critical alerts to the dashboard through WebSocket
+    """
+    while True:
+        try:
+            result = ingest_and_save_events()
+
+            print(
+                f"[Real Ingestion] Collected={result['collected']} "
+                f"Saved={result['saved']} Skipped={result['skipped']}"
+            )
+
+            for alert in result["saved_alerts"]:
+                if alert["severity"] in ["high", "critical"]:
+                    await manager.broadcast(alert)
+
+        except Exception as error:
+            print("[Real Ingestion] Failed:", error)
+
+        # Production interval: every 5 minutes
+        await asyncio.sleep(300)
+
+
 @app.on_event("startup")
-async def start_city_event_stream():
-    asyncio.create_task(city_event_stream())
+async def start_real_city_ingestion():
+    asyncio.create_task(real_city_ingestion_stream())
+
 
 @app.get("/")
 def health_check():
     return {"status": "UrbanMind AI backend running"}
+
+
+@app.post("/api/ingestion/run")
+async def run_ingestion_now():
+    """
+    Manual ingestion trigger.
+    Useful for testing or refreshing real data from the frontend later.
+    """
+    result = ingest_and_save_events()
+
+    for alert in result["saved_alerts"]:
+        if alert["severity"] in ["high", "critical"]:
+            await manager.broadcast(alert)
+
+    return {
+        "message": "Ingestion completed",
+        "collected": result["collected"],
+        "saved": result["saved"],
+        "skipped": result["skipped"],
+    }
+
+
+@app.post("/api/dev/broadcast-test")
+async def broadcast_test_alert():
+    """
+    Development-only endpoint to test WebSocket updates.
+    Remove or disable before final production/demo polish if needed.
+    """
+    test_alert = {
+        "id": 999999,
+        "title": "WebSocket test alert",
+        "category": "system",
+        "severity": "high",
+        "latitude": 43.6532,
+        "longitude": -79.3832,
+        "description": "This is a temporary test alert to confirm live updates are working.",
+        "source": "websocket-test",
+        "risk_score": 80,
+        "created_at": "2026-05-24T00:00:00",
+    }
+
+    await manager.broadcast(test_alert)
+
+    return {"message": "Test alert broadcasted"}
 
 
 @app.websocket("/ws/alerts")
@@ -41,36 +116,6 @@ async def websocket_alerts(websocket: WebSocket):
     try:
         while True:
             await websocket.receive_text()
+
     except WebSocketDisconnect:
         manager.disconnect(websocket)
-
-
-async def city_event_stream():
-    while True:
-        await asyncio.sleep(8)
-
-        db = SessionLocal()
-
-        try:
-            event_data = generate_city_event()
-            new_alert = CityAlert(**event_data)
-
-            db.add(new_alert)
-            db.commit()
-            db.refresh(new_alert)
-
-            await manager.broadcast({
-                "id": new_alert.id,
-                "title": new_alert.title,
-                "category": new_alert.category,
-                "severity": new_alert.severity,
-                "latitude": new_alert.latitude,
-                "longitude": new_alert.longitude,
-                "description": new_alert.description,
-                "source": new_alert.source,
-                "risk_score": new_alert.risk_score,
-                "created_at": str(new_alert.created_at),
-            })
-
-        finally:
-            db.close()

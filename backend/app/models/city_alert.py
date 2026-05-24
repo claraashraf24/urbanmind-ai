@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime, Text
 from sqlalchemy.sql import func
 from app.database import Base
+from sqlalchemy import JSON
 
 
 class CityAlert(Base):
@@ -16,4 +17,5 @@ class CityAlert(Base):
     source = Column(String(100), nullable=False, default="system")
     risk_score = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+    raw_payload = Column(JSON, nullable=True)
     
