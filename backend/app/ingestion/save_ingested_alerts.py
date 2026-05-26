@@ -6,6 +6,7 @@ from app.ingestion.run_ingestion import run_all_ingestors
 def serialize_alert(alert: CityAlert) -> dict:
     return {
         "id": alert.id,
+        "external_id": alert.external_id,
         "title": alert.title,
         "category": alert.category,
         "severity": alert.severity,
@@ -26,20 +27,31 @@ def save_events_to_database(events):
 
     try:
         for event in events:
-            existing = (
-                db.query(CityAlert)
-                .filter(CityAlert.title == event["title"])
-                .filter(CityAlert.source == event["source"])
-                .filter(CityAlert.latitude == event["latitude"])
-                .filter(CityAlert.longitude == event["longitude"])
-                .first()
-            )
+            external_id = event.get("external_id")
+
+            if external_id:
+                existing = (
+                    db.query(CityAlert)
+                    .filter(CityAlert.external_id == external_id)
+                    .filter(CityAlert.source == event["source"])
+                    .first()
+                )
+            else:
+                existing = (
+                    db.query(CityAlert)
+                    .filter(CityAlert.title == event["title"])
+                    .filter(CityAlert.source == event["source"])
+                    .filter(CityAlert.latitude == event["latitude"])
+                    .filter(CityAlert.longitude == event["longitude"])
+                    .first()
+                )
 
             if existing:
                 skipped_count += 1
                 continue
 
             alert = CityAlert(
+                external_id=event.get("external_id"),
                 title=event["title"],
                 category=event["category"],
                 severity=event["severity"],

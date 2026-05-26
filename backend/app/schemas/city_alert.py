@@ -13,6 +13,7 @@ class CityAlertCreate(BaseModel):
     source: str = "system"
     risk_score: float = 0.0
     raw_payload: Optional[dict[str, Any]] = None
+    external_id: Optional[str] = None
 
 
 class CityAlertResponse(CityAlertCreate):

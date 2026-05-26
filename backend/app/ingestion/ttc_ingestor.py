@@ -100,6 +100,7 @@ def get_ttc_alerts():
         severity = classify_ttc_severity(title, description)
 
         event = {
+            "external_id": f"ttc-{entity.id}",
             "source": "ttc-gtfs-realtime",
             "category": "transit",
             "severity": severity,

@@ -49,6 +49,7 @@ def get_weather_risk_alerts():
             continue
 
         event = {
+            "external_id": f"open-meteo-{time_value}",
             "source": "open-meteo",
             "category": "weather",
             "severity": severity,
@@ -68,7 +69,9 @@ def get_weather_risk_alerts():
                 "wind_speed": wind_speed,
                 "wind_gusts": wind_gusts,
                 "visibility": visibility,
+                
             },
+            
         }
 
         event["risk_score"] = calculate_city_event_risk(event)

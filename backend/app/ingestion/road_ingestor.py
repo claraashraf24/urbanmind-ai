@@ -8,6 +8,20 @@ from app.services.risk_engine import calculate_city_event_risk
 ROAD_RESTRICTIONS_URL = "https://secure.toronto.ca/opendata/cart/road_restrictions/v3?format=csv"
 
 
+
+def format_millis_timestamp(value):
+    try:
+        if value is None or value == "":
+            return ""
+
+        timestamp = int(value) / 1000
+        return datetime.fromtimestamp(timestamp, tz=timezone.utc).strftime(
+            "%Y-%m-%d %H:%M UTC"
+        )
+
+    except Exception:
+        return str(value)
+    
 def classify_road_severity(title, description):
     text = f"{title} {description}".lower()
 
@@ -35,6 +49,17 @@ def first_available(record, keys, fallback=None):
             return record[key]
     return fallback
 
+def clean_text(value):
+    if value is None:
+        return ""
+
+    text = str(value).strip()
+
+    if text.startswith("{") or "tabledata" in text.lower():
+        return "City work / infrastructure activity"
+
+    return text
+
 
 def normalize_record(record):
     road = first_available(record, ["Road"], "")
@@ -42,11 +67,17 @@ def normalize_record(record):
     district = first_available(record, ["District"], "")
     road_class = first_available(record, ["RoadClass"], "")
     planned = first_available(record, ["Planned"], "")
-    source = first_available(record, ["Source"], "")
+    source = clean_text(first_available(record, ["Source"], ""))
     work_event = first_available(record, ["WorkEvent"], "")
     restriction = first_available(record, ["WorkPeriod"], "")
-    start_time = first_available(record, ["StartTime"], "")
+    start_time_raw = first_available(record, ["StartTime"], "")
+    end_time_raw = first_available(record, ["EndTime"], "")
+
+    start_time = format_millis_timestamp(start_time_raw)
+    end_time = format_millis_timestamp(end_time_raw)
     end_time = first_available(record, ["EndTime"], "")
+    external_id = first_available(record, ["ID"], None)
+    
 
     title = name or road or "Road restriction detected"
 
@@ -68,6 +99,7 @@ def normalize_record(record):
     severity = classify_road_severity(title, description)
 
     event = {
+        "external_id": f"road-{external_id}" if external_id else None,
         "source": "toronto-road-restrictions",
         "category": "traffic",
         "severity": severity,
@@ -110,6 +142,11 @@ def get_road_restriction_alerts():
     alerts = []
 
     for record in records:
+        expired = str(record.get("Expired", "0")).strip()
+
+        if expired == "1":
+            continue
+
         alerts.append(normalize_record(record))
 
     return alerts

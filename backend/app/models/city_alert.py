@@ -18,4 +18,5 @@ class CityAlert(Base):
     risk_score = Column(Float, nullable=False, default=0.0)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     raw_payload = Column(JSON, nullable=True)
+    external_id = Column(String(255), nullable=True, index=True)
     

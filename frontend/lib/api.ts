@@ -1,5 +1,6 @@
 export type CityAlert = {
   id: number;
+  external_id?: string | null;
   title: string;
   category: string;
   severity: "low" | "medium" | "high" | "critical";
