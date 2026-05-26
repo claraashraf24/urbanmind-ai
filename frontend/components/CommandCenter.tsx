@@ -1,7 +1,16 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { CityAlert, CityOverview, RiskExplanation } from "@/lib/api";
+import type {
+  CategoryDistributionItem,
+  CityAlert,
+  CityOverview,
+  DistrictRiskItem,
+  RiskExplanation,
+  RiskSummary,
+  SourceDistributionItem,
+  TopRiskAlert,
+} from "@/lib/api";
 import { fetchRiskExplanation } from "@/lib/api";
 import { useEffect, useMemo, useState } from "react";
 
@@ -12,6 +21,11 @@ const CityMap = dynamic(() => import("@/components/CityMap"), {
 type Props = {
   alerts: CityAlert[];
   overview: CityOverview;
+  sourceDistribution: SourceDistributionItem[];
+  categoryDistribution: CategoryDistributionItem[];
+  topRiskAlerts: TopRiskAlert[];
+  districtRisk: DistrictRiskItem[];
+  riskSummary: RiskSummary;
 };
 
 function formatSource(source: string) {
@@ -39,7 +53,33 @@ function formatStatus(status: string) {
   return status.toUpperCase();
 }
 
-export default function CommandCenter({ alerts, overview }: Props) {
+function formatAnalyticsLabel(value: string | null) {
+  if (!value) return "Unknown";
+
+  if (value === "open-meteo") return "Weather";
+  if (value === "ttc-gtfs-realtime") return "TTC";
+  if (value === "toronto-road-restrictions") return "Roads";
+
+  return value
+    .replaceAll("-", " ")
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getPercentage(value: number, max: number) {
+  if (max <= 0) return 0;
+  return Math.max(4, Math.round((value / max) * 100));
+}
+
+export default function CommandCenter({
+  alerts,
+  overview,
+  sourceDistribution,
+  categoryDistribution,
+  topRiskAlerts,
+  districtRisk,
+  riskSummary,
+}: Props) {
   const [liveAlerts, setLiveAlerts] = useState<CityAlert[]>(alerts);
   const [cityOverview, setCityOverview] = useState<CityOverview>(overview);
 
@@ -157,6 +197,18 @@ export default function CommandCenter({ alerts, overview }: Props) {
     { label: "Roads", value: "toronto-road-restrictions" },
   ];
 
+  const maxSourceCount = Math.max(
+  ...sourceDistribution.map((item) => item.count),
+  1
+);
+
+const maxCategoryCount = Math.max(
+  ...categoryDistribution.map((item) => item.count),
+  1
+);
+
+const topDistricts = districtRisk.slice(0, 5);
+
   async function handleToggleExplanation(alertId: number) {
     if (openExplanationId === alertId) {
       setOpenExplanationId(null);
@@ -243,7 +295,7 @@ export default function CommandCenter({ alerts, overview }: Props) {
           <CityMap alerts={filteredAlerts} />
         </section>
 
-        <aside className="h-full overflow-hidden rounded-2xl border border-cyan-500/20 bg-slate-950 p-5 shadow-2xl">
+        <aside className="h-full overflow-y-auto rounded-2xl border border-cyan-500/20 bg-slate-950 p-5 shadow-2xl">
           <div className="flex items-start justify-between gap-3">
             <div>
               <p className="text-xs uppercase tracking-[0.35em] text-cyan-300">
@@ -325,8 +377,165 @@ export default function CommandCenter({ alerts, overview }: Props) {
               ))}
             </div>
           </div>
+          <div className="mt-4 rounded-xl border border-cyan-500/20 bg-slate-900 p-3">
+  <div className="flex items-center justify-between gap-3">
+    <div>
+      <p className="text-[10px] uppercase tracking-widest text-cyan-300">
+        City Intelligence
+      </p>
+      <h3 className="mt-1 text-sm font-semibold text-white">
+        Risk Summary
+      </h3>
+    </div>
 
-          <div className="mt-4 max-h-[calc(100vh-310px)] space-y-2 overflow-y-auto pr-2">
+    <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-[9px] font-semibold uppercase text-cyan-300">
+      Live Analytics
+    </span>
+  </div>
+
+  <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+    {riskSummary.summary}
+  </p>
+
+  <div className="mt-3 grid grid-cols-3 gap-2">
+    <div className="rounded-lg bg-slate-950 p-2">
+      <p className="text-[9px] uppercase text-slate-500">Total</p>
+      <p className="mt-1 text-sm font-bold text-white">
+        {riskSummary.total_alerts}
+      </p>
+    </div>
+
+    <div className="rounded-lg bg-slate-950 p-2">
+      <p className="text-[9px] uppercase text-slate-500">High</p>
+      <p className="mt-1 text-sm font-bold text-orange-300">
+        {riskSummary.high_alerts}
+      </p>
+    </div>
+
+    <div className="rounded-lg bg-slate-950 p-2">
+      <p className="text-[9px] uppercase text-slate-500">Avg Risk</p>
+      <p className="mt-1 text-sm font-bold text-cyan-300">
+        {Math.round(riskSummary.average_risk_score)}
+      </p>
+    </div>
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+  <p className="text-[10px] uppercase tracking-widest text-slate-500">
+    Risk by Source
+  </p>
+
+  <div className="mt-3 space-y-2">
+    {sourceDistribution.map((item) => (
+      <div key={item.source}>
+        <div className="mb-1 flex items-center justify-between text-[10px]">
+          <span className="font-semibold uppercase text-slate-300">
+            {formatAnalyticsLabel(item.source)}
+          </span>
+          <span className="text-slate-500">{item.count}</span>
+        </div>
+
+        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-cyan-400"
+            style={{
+              width: `${getPercentage(item.count, maxSourceCount)}%`,
+            }}
+          />
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+  <p className="text-[10px] uppercase tracking-widest text-slate-500">
+    Risk by Category
+  </p>
+
+  <div className="mt-3 space-y-2">
+    {categoryDistribution.map((item) => (
+      <div key={item.category}>
+        <div className="mb-1 flex items-center justify-between text-[10px]">
+          <span className="font-semibold uppercase text-slate-300">
+            {formatAnalyticsLabel(item.category)}
+          </span>
+          <span className="text-slate-500">{item.count}</span>
+        </div>
+
+        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full bg-purple-400"
+            style={{
+              width: `${getPercentage(item.count, maxCategoryCount)}%`,
+            }}
+          />
+        </div>
+      </div>
+    ))}
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-red-500/20 bg-slate-900 p-3">
+  <p className="text-[10px] uppercase tracking-widest text-red-300">
+    Top Risk Alerts
+  </p>
+
+  <div className="mt-3 space-y-2">
+    {topRiskAlerts.map((alert, index) => (
+      <div
+        key={alert.id}
+        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="rounded-full bg-red-400/10 px-2 py-0.5 text-[9px] font-bold text-red-300">
+            #{index + 1}
+          </span>
+
+          <span className="text-[10px] font-bold text-red-300">
+            {Math.round(alert.risk_score)}/100
+          </span>
+        </div>
+
+        <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
+          {alert.title}
+        </p>
+
+        <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
+          {formatAnalyticsLabel(alert.source)} · {alert.category}
+        </p>
+      </div>
+    ))}
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-900 p-3">
+  <p className="text-[10px] uppercase tracking-widest text-emerald-300">
+    District Risk Ranking
+  </p>
+
+  <div className="mt-3 space-y-2">
+    {topDistricts.map((district) => (
+      <div
+        key={district.district}
+        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <p className="truncate text-[11px] font-semibold uppercase text-slate-200">
+            {district.district}
+          </p>
+
+          <span className="text-[10px] font-bold text-emerald-300">
+            {Math.round(district.average_risk_score)}
+          </span>
+        </div>
+
+        <p className="mt-1 text-[9px] text-slate-500">
+          {district.count} alerts · {district.critical_alerts} critical
+        </p>
+      </div>
+    ))}
+  </div>
+</div>
+
+          <div className="mt-4 space-y-2 pr-2">
             {filteredAlerts.slice(0, 30).map((alert) => (
               <div
                 key={alert.id}
