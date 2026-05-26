@@ -14,11 +14,13 @@ class CityAlertCreate(BaseModel):
     risk_score: float = 0.0
     raw_payload: Optional[dict[str, Any]] = None
     external_id: Optional[str] = None
+    status: str = "active"
 
 
 class CityAlertResponse(CityAlertCreate):
     id: int
     created_at: datetime
+    resolved_at: Optional[datetime] = None
     risk_score: float = 0.0
 
     class Config:

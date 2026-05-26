@@ -2,6 +2,7 @@ import asyncio
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from app.ingestion.expire_stale_alerts import expire_stale_alerts
 
 from app.database import Base, engine
 from app.routers import analytics, city_alerts
@@ -38,11 +39,13 @@ async def real_city_ingestion_stream():
     while True:
         try:
             result = ingest_and_save_events()
+            expired_count = expire_stale_alerts(hours=24)
 
             print(
-                f"[Real Ingestion] Collected={result['collected']} "
-                f"Saved={result['saved']} Skipped={result['skipped']}"
-            )
+            f"[Real Ingestion] Collected={result['collected']} "
+            f"Saved={result['saved']} Skipped={result['skipped']} "
+            f"Expired={expired_count}"
+        )
 
             for alert in result["saved_alerts"]:
                 if alert["severity"] in ["high", "critical"]:
@@ -72,6 +75,7 @@ async def run_ingestion_now():
     Useful for testing or refreshing real data from the frontend later.
     """
     result = ingest_and_save_events()
+    expired_count = expire_stale_alerts(hours=24)
 
     for alert in result["saved_alerts"]:
         if alert["severity"] in ["high", "critical"]:
@@ -82,6 +86,7 @@ async def run_ingestion_now():
         "collected": result["collected"],
         "saved": result["saved"],
         "skipped": result["skipped"],
+        "expired": expired_count,
     }
 
 

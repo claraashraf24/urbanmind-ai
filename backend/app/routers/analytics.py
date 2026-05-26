@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 @router.get("/overview")
 def get_city_overview(db: Session = Depends(get_db)):
-    alerts = db.query(CityAlert).all()
+    alerts = db.query(CityAlert).filter(CityAlert.status == "active").all()
 
     if not alerts:
         return {
@@ -69,6 +69,7 @@ def get_city_overview(db: Session = Depends(get_db)):
 def get_source_distribution(db: Session = Depends(get_db)):
     results = (
         db.query(CityAlert.source, func.count(CityAlert.id))
+        .filter(CityAlert.status == "active")
         .group_by(CityAlert.source)
         .order_by(func.count(CityAlert.id).desc())
         .all()
@@ -108,6 +109,7 @@ def get_top_risk_alerts(
 ):
     alerts = (
         db.query(CityAlert)
+        .filter(CityAlert.status == "active")
         .order_by(CityAlert.risk_score.desc(), CityAlert.created_at.desc())
         .limit(limit)
         .all()
@@ -133,6 +135,7 @@ def get_top_risk_alerts(
 def get_district_risk(db: Session = Depends(get_db)):
     alerts = (
         db.query(CityAlert)
+        .filter(CityAlert.status == "active")
         .filter(CityAlert.source == "toronto-road-restrictions")
         .all()
     )
@@ -211,6 +214,7 @@ def get_risk_summary(db: Session = Depends(get_db)):
 
     top_source = (
         db.query(CityAlert.source, func.count(CityAlert.id))
+        .filter(CityAlert.status == "active")
         .group_by(CityAlert.source)
         .order_by(func.count(CityAlert.id).desc())
         .first()
@@ -252,6 +256,7 @@ def get_risk_hotspots(
 ):
     alerts = (
         db.query(CityAlert)
+        .filter(CityAlert.status == "active")
         .filter(CityAlert.risk_score >= 60)
         .all()
     )

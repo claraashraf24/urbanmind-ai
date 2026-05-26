@@ -1,5 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from datetime import datetime, timezone
+from fastapi import HTTPException
 
 from app.database import get_db
 from app.models.city_alert import CityAlert
@@ -15,6 +17,7 @@ def get_alerts(
     source: str | None = Query(default=None),
     category: str | None = Query(default=None),
     severity: str | None = Query(default=None),
+    status: str | None = Query(default="active"),
     limit: int = Query(default=300, ge=1, le=3000),
     db: Session = Depends(get_db),
 ):
@@ -28,6 +31,8 @@ def get_alerts(
 
     if severity:
         query = query.filter(CityAlert.severity == severity)
+    if status and status != "all":
+        query = query.filter(CityAlert.status == status)
 
     alerts = (
         query
@@ -35,6 +40,7 @@ def get_alerts(
         .limit(limit)
         .all()
     )
+    
 
     return alerts
 
@@ -68,4 +74,27 @@ def get_alert_risk_explanation(
         "category": alert.category,
         "severity": alert.severity,
         "reasons": explain_risk(event),
+    }
+
+@router.patch("/{alert_id}/resolve")
+def resolve_alert(
+    alert_id: int,
+    db: Session = Depends(get_db),
+):
+    alert = db.query(CityAlert).filter(CityAlert.id == alert_id).first()
+
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+
+    alert.status = "resolved"
+    alert.resolved_at = datetime.now(timezone.utc)
+
+    db.commit()
+    db.refresh(alert)
+
+    return {
+        "message": "Alert resolved",
+        "id": alert.id,
+        "status": alert.status,
+        "resolved_at": alert.resolved_at,
     }

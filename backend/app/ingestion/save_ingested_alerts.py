@@ -16,6 +16,8 @@ def serialize_alert(alert: CityAlert) -> dict:
         "source": alert.source,
         "risk_score": alert.risk_score,
         "created_at": alert.created_at.isoformat() if alert.created_at else None,
+        "status": alert.status,
+        "resolved_at": alert.resolved_at.isoformat() if alert.resolved_at else None,
         "raw_payload": alert.raw_payload,
     }
 
@@ -47,6 +49,13 @@ def save_events_to_database(events):
                 )
 
             if existing:
+                if existing.status != "active":
+                    existing.status = "active"
+                    existing.resolved_at = None
+                    existing.risk_score = event.get("risk_score", existing.risk_score)
+                    existing.description = event.get("description", existing.description)
+                    existing.raw_payload = event.get("raw_payload", existing.raw_payload)
+
                 skipped_count += 1
                 continue
 
@@ -61,6 +70,7 @@ def save_events_to_database(events):
                 source=event["source"],
                 risk_score=event.get("risk_score", 0),
                 raw_payload=event.get("raw_payload"),
+                status="active",
             )
 
             db.add(alert)
