@@ -19,7 +19,7 @@ export default async function Home() {
     districtRisk,
     riskSummary,
   ] = await Promise.all([
-    fetchCityAlerts({ limit: 300 }),
+    fetchCityAlerts({ limit: 200 }),
     fetchCityOverview(),
     fetchSourceDistribution(),
     fetchCategoryDistribution(),

@@ -311,9 +311,18 @@ const topDistricts = districtRisk.slice(0, 5);
               </p>
             </div>
 
-            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase text-cyan-300">
-              AI Risk Engine
-            </span>
+            <div className="flex flex-col items-end gap-2">
+  <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase text-cyan-300">
+    AI Risk Engine
+  </span>
+
+  <button
+    onClick={() => setSeverityFilter("critical")}
+    className="rounded-full border border-red-400/30 bg-red-400/10 px-3 py-1 text-[10px] font-semibold uppercase text-red-300 transition hover:bg-red-400 hover:text-slate-950"
+  >
+    Critical Only
+  </button>
+</div>
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
@@ -374,7 +383,18 @@ const topDistricts = districtRisk.slice(0, 5);
                 >
                   {category}
                 </button>
+                
               ))}
+              <button
+  onClick={() => {
+    setSourceFilter("all");
+    setSeverityFilter("all");
+    setCategoryFilter("all");
+  }}
+  className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+>
+  Reset Filters
+</button>
             </div>
           </div>
           <div className="mt-4 rounded-xl border border-cyan-500/20 bg-slate-900 p-3">
