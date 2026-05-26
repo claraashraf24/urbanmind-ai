@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import type {
   CategoryDistributionItem,
   CityAlert,
+  CityBriefing,
   CityOverview,
   DistrictRiskItem,
   RiskExplanation,
@@ -28,7 +29,11 @@ type Props = {
   districtRisk: DistrictRiskItem[];
   riskSummary: RiskSummary;
   riskHotspots: RiskHotspot[];
+  cityBriefing: CityBriefing;
 };
+
+const API_BASE_URL =
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
 function formatSource(source: string) {
   if (source === "open-meteo") return "Weather";
@@ -82,6 +87,7 @@ export default function CommandCenter({
   districtRisk,
   riskSummary,
   riskHotspots,
+  cityBriefing,
 }: Props) {
   const [liveAlerts, setLiveAlerts] = useState<CityAlert[]>(alerts);
   const [cityOverview, setCityOverview] = useState<CityOverview>(overview);
@@ -89,9 +95,11 @@ export default function CommandCenter({
   const [sourceFilter, setSourceFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [selectedHotspotIndex, setSelectedHotspotIndex] = useState<number | null>(
-  null
-);
+  const [statusFilter, setStatusFilter] = useState("active");
+
+  const [selectedHotspotIndex, setSelectedHotspotIndex] = useState<
+    number | null
+  >(null);
 
   const [openExplanationId, setOpenExplanationId] = useState<number | null>(
     null
@@ -180,9 +188,14 @@ export default function CommandCenter({
       const matchesCategory =
         categoryFilter === "all" || alert.category === categoryFilter;
 
-      return matchesSource && matchesSeverity && matchesCategory;
+      const matchesStatus =
+        statusFilter === "all" || alert.status === statusFilter;
+
+      return matchesSource && matchesSeverity && matchesCategory && matchesStatus;
     });
-  }, [liveAlerts, sourceFilter, severityFilter, categoryFilter]);
+  }, [liveAlerts, sourceFilter, severityFilter, categoryFilter, statusFilter]);
+
+  const statusOptions = ["active", "resolved", "expired", "all"];
 
   const severityOptions = ["all", "medium", "high", "critical"];
 
@@ -204,16 +217,16 @@ export default function CommandCenter({
   ];
 
   const maxSourceCount = Math.max(
-  ...sourceDistribution.map((item) => item.count),
-  1
-);
+    ...sourceDistribution.map((item) => item.count),
+    1
+  );
 
-const maxCategoryCount = Math.max(
-  ...categoryDistribution.map((item) => item.count),
-  1
-);
+  const maxCategoryCount = Math.max(
+    ...categoryDistribution.map((item) => item.count),
+    1
+  );
 
-const topDistricts = districtRisk.slice(0, 5);
+  const topDistricts = districtRisk.slice(0, 5);
 
   async function handleToggleExplanation(alertId: number) {
     if (openExplanationId === alertId) {
@@ -240,6 +253,39 @@ const topDistricts = districtRisk.slice(0, 5);
     } finally {
       setLoadingExplanationId(null);
     }
+  }
+
+  async function handleResolveAlert(alertId: number) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/alerts/${alertId}/resolve`, {
+        method: "PATCH",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to resolve alert");
+      }
+
+      setLiveAlerts((prev) =>
+        prev.map((item) =>
+          item.id === alertId
+            ? {
+                ...item,
+                status: "resolved",
+                resolved_at: new Date().toISOString(),
+              }
+            : item
+        )
+      );
+    } catch (error) {
+      console.error("Failed to mark alert as resolved:", error);
+    }
+  }
+
+  function resetFilters() {
+    setStatusFilter("active");
+    setSourceFilter("all");
+    setSeverityFilter("all");
+    setCategoryFilter("all");
   }
 
   return (
@@ -299,10 +345,10 @@ const topDistricts = districtRisk.slice(0, 5);
           </div>
 
           <CityMap
-  alerts={filteredAlerts}
-  hotspots={riskHotspots}
-  selectedHotspotIndex={selectedHotspotIndex}
-/>
+            alerts={filteredAlerts}
+            hotspots={riskHotspots}
+            selectedHotspotIndex={selectedHotspotIndex}
+          />
         </section>
 
         <aside className="h-full overflow-y-auto rounded-2xl border border-cyan-500/20 bg-slate-950 p-5 shadow-2xl">
@@ -322,21 +368,41 @@ const topDistricts = districtRisk.slice(0, 5);
             </div>
 
             <div className="flex flex-col items-end gap-2">
-  <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase text-cyan-300">
-    AI Risk Engine
-  </span>
+              <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-3 py-1 text-[10px] uppercase text-cyan-300">
+                AI Risk Engine
+              </span>
 
-  <button
-    onClick={() => setSeverityFilter("critical")}
-    className="rounded-full border border-red-400/30 bg-red-400/10 px-3 py-1 text-[10px] font-semibold uppercase text-red-300 transition hover:bg-red-400 hover:text-slate-950"
-  >
-    Critical Only
-  </button>
-</div>
+              <button
+                onClick={() => setSeverityFilter("critical")}
+                className="rounded-full border border-red-400/30 bg-red-400/10 px-3 py-1 text-[10px] font-semibold uppercase text-red-300 transition hover:bg-red-400 hover:text-slate-950"
+              >
+                Critical Only
+              </button>
+            </div>
           </div>
 
           <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
             <p className="mb-2 text-[10px] uppercase tracking-widest text-slate-500">
+              Status
+            </p>
+
+            <div className="grid grid-cols-4 gap-1.5">
+              {statusOptions.map((status) => (
+                <button
+                  key={status}
+                  onClick={() => setStatusFilter(status)}
+                  className={`rounded-lg px-2 py-1.5 text-[9px] font-semibold uppercase transition ${
+                    statusFilter === status
+                      ? "bg-emerald-400 text-slate-950"
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                  }`}
+                >
+                  {status}
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-2 mt-4 text-[10px] uppercase tracking-widest text-slate-500">
               Source
             </p>
 
@@ -393,227 +459,289 @@ const topDistricts = districtRisk.slice(0, 5);
                 >
                   {category}
                 </button>
-                
               ))}
-              <button
-  onClick={() => {
-    setSourceFilter("all");
-    setSeverityFilter("all");
-    setCategoryFilter("all");
-  }}
-  className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
->
-  Reset Filters
-</button>
             </div>
+
+            <button
+              onClick={resetFilters}
+              className="mt-4 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-slate-300 transition hover:border-cyan-400 hover:text-cyan-300"
+            >
+              Reset Filters
+            </button>
           </div>
-          <div className="mt-4 rounded-xl border border-cyan-500/20 bg-slate-900 p-3">
-  <div className="flex items-center justify-between gap-3">
+
+          <div className="mt-4 rounded-xl border border-indigo-500/20 bg-slate-900 p-3">
+  <div className="flex items-start justify-between gap-3">
     <div>
-      <p className="text-[10px] uppercase tracking-widest text-cyan-300">
-        City Intelligence
+      <p className="text-[10px] uppercase tracking-widest text-indigo-300">
+        AI Incident Briefing
       </p>
+
       <h3 className="mt-1 text-sm font-semibold text-white">
-        Risk Summary
+        {cityBriefing.headline}
       </h3>
     </div>
 
-    <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-[9px] font-semibold uppercase text-cyan-300">
-      Live Analytics
+    <span className="rounded-full bg-indigo-400/10 px-2 py-1 text-[9px] font-semibold uppercase text-indigo-300">
+      {cityBriefing.risk_level}
     </span>
   </div>
 
   <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
-    {riskSummary.summary}
+    {cityBriefing.summary}
   </p>
 
-  <div className="mt-3 grid grid-cols-3 gap-2">
-    <div className="rounded-lg bg-slate-950 p-2">
-      <p className="text-[9px] uppercase text-slate-500">Total</p>
-      <p className="mt-1 text-sm font-bold text-white">
-        {riskSummary.total_alerts}
-      </p>
-    </div>
+  <div className="mt-3 rounded-lg bg-slate-950 p-3">
+    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      Key Drivers
+    </p>
 
-    <div className="rounded-lg bg-slate-950 p-2">
-      <p className="text-[9px] uppercase text-slate-500">High</p>
-      <p className="mt-1 text-sm font-bold text-orange-300">
-        {riskSummary.high_alerts}
-      </p>
-    </div>
+    <ul className="mt-2 space-y-1.5">
+      {cityBriefing.key_drivers.slice(0, 4).map((driver, index) => (
+        <li
+          key={`driver-${index}`}
+          className="flex gap-2 text-[11px] leading-relaxed text-slate-300"
+        >
+          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-300" />
+          <span>{driver}</span>
+        </li>
+      ))}
+    </ul>
+  </div>
 
-    <div className="rounded-lg bg-slate-950 p-2">
-      <p className="text-[9px] uppercase text-slate-500">Avg Risk</p>
-      <p className="mt-1 text-sm font-bold text-cyan-300">
-        {Math.round(riskSummary.average_risk_score)}
-      </p>
-    </div>
+  <div className="mt-3 rounded-lg bg-slate-950 p-3">
+    <p className="text-[10px] font-semibold uppercase tracking-widest text-slate-400">
+      Recommended Actions
+    </p>
+
+    <ul className="mt-2 space-y-1.5">
+      {cityBriefing.recommended_actions.slice(0, 4).map((action, index) => (
+        <li
+          key={`action-${index}`}
+          className="flex gap-2 text-[11px] leading-relaxed text-slate-300"
+        >
+          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300" />
+          <span>{action}</span>
+        </li>
+      ))}
+    </ul>
   </div>
 </div>
-<div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
-  <p className="text-[10px] uppercase tracking-widest text-slate-500">
-    Risk by Source
-  </p>
 
-  <div className="mt-3 space-y-2">
-    {sourceDistribution.map((item) => (
-      <div key={item.source}>
-        <div className="mb-1 flex items-center justify-between text-[10px]">
-          <span className="font-semibold uppercase text-slate-300">
-            {formatAnalyticsLabel(item.source)}
-          </span>
-          <span className="text-slate-500">{item.count}</span>
-        </div>
+          <div className="mt-4 rounded-xl border border-cyan-500/20 bg-slate-900 p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-[10px] uppercase tracking-widest text-cyan-300">
+                  City Intelligence
+                </p>
+                <h3 className="mt-1 text-sm font-semibold text-white">
+                  Risk Summary
+                </h3>
+              </div>
 
-        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full bg-cyan-400"
-            style={{
-              width: `${getPercentage(item.count, maxSourceCount)}%`,
-            }}
-          />
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
-<div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
-  <p className="text-[10px] uppercase tracking-widest text-slate-500">
-    Risk by Category
-  </p>
+              <span className="rounded-full bg-cyan-400/10 px-2 py-1 text-[9px] font-semibold uppercase text-cyan-300">
+                Live Analytics
+              </span>
+            </div>
 
-  <div className="mt-3 space-y-2">
-    {categoryDistribution.map((item) => (
-      <div key={item.category}>
-        <div className="mb-1 flex items-center justify-between text-[10px]">
-          <span className="font-semibold uppercase text-slate-300">
-            {formatAnalyticsLabel(item.category)}
-          </span>
-          <span className="text-slate-500">{item.count}</span>
-        </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+              {riskSummary.summary}
+            </p>
 
-        <div className="h-2 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full bg-purple-400"
-            style={{
-              width: `${getPercentage(item.count, maxCategoryCount)}%`,
-            }}
-          />
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
-<div className="mt-4 rounded-xl border border-red-500/20 bg-slate-900 p-3">
-  <p className="text-[10px] uppercase tracking-widest text-red-300">
-    Top Risk Alerts
-  </p>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-lg bg-slate-950 p-2">
+                <p className="text-[9px] uppercase text-slate-500">Total</p>
+                <p className="mt-1 text-sm font-bold text-white">
+                  {riskSummary.total_alerts}
+                </p>
+              </div>
 
+              <div className="rounded-lg bg-slate-950 p-2">
+                <p className="text-[9px] uppercase text-slate-500">High</p>
+                <p className="mt-1 text-sm font-bold text-orange-300">
+                  {riskSummary.high_alerts}
+                </p>
+              </div>
 
-  <div className="mt-3 space-y-2">
-    {topRiskAlerts.map((alert, index) => (
-      <div
-        key={alert.id}
-        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <span className="rounded-full bg-red-400/10 px-2 py-0.5 text-[9px] font-bold text-red-300">
-            #{index + 1}
-          </span>
+              <div className="rounded-lg bg-slate-950 p-2">
+                <p className="text-[9px] uppercase text-slate-500">Avg Risk</p>
+                <p className="mt-1 text-sm font-bold text-cyan-300">
+                  {Math.round(riskSummary.average_risk_score)}
+                </p>
+              </div>
+            </div>
+          </div>
 
-          <span className="text-[10px] font-bold text-red-300">
-            {Math.round(alert.risk_score)}/100
-          </span>
-        </div>
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">
+              Risk by Source
+            </p>
 
-        <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
-          {alert.title}
-        </p>
+            <div className="mt-3 space-y-2">
+              {sourceDistribution.map((item) => (
+                <div key={item.source}>
+                  <div className="mb-1 flex items-center justify-between text-[10px]">
+                    <span className="font-semibold uppercase text-slate-300">
+                      {formatAnalyticsLabel(item.source)}
+                    </span>
+                    <span className="text-slate-500">{item.count}</span>
+                  </div>
 
-        <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
-          {formatAnalyticsLabel(alert.source)} · {alert.category}
-        </p>
-      </div>
-    ))}
-  </div>
-</div>
-<div className="mt-4 rounded-xl border border-orange-500/20 bg-slate-900 p-3">
-  <p className="text-[10px] uppercase tracking-widest text-orange-300">
-    Top Risk Hotspots
-  </p>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-cyan-400"
+                      style={{
+                        width: `${getPercentage(item.count, maxSourceCount)}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-  <div className="mt-3 space-y-2">
-    {riskHotspots.map((hotspot, index) => (
-      <button
-  key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
-  onClick={() => setSelectedHotspotIndex(index)}
-  className={`w-full rounded-lg border p-2 text-left transition ${
-    selectedHotspotIndex === index
-      ? "border-orange-400 bg-orange-400/10"
-      : "border-slate-800 bg-slate-950 hover:border-orange-400/50"
-  }`}
->
-        <div className="flex items-center justify-between gap-2">
-          <span className="rounded-full bg-orange-400/10 px-2 py-0.5 text-[9px] font-bold text-orange-300">
-            Zone #{index + 1}
-          </span>
+          <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-slate-500">
+              Risk by Category
+            </p>
 
-          <span className="text-[10px] font-bold text-orange-300">
-            {Math.round(hotspot.average_risk_score)}/100
-          </span>
-        </div>
+            <div className="mt-3 space-y-2">
+              {categoryDistribution.map((item) => (
+                <div key={item.category}>
+                  <div className="mb-1 flex items-center justify-between text-[10px]">
+                    <span className="font-semibold uppercase text-slate-300">
+                      {formatAnalyticsLabel(item.category)}
+                    </span>
+                    <span className="text-slate-500">{item.count}</span>
+                  </div>
 
-        <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
-          {hotspot.top_alert_title}
-        </p>
+                  <div className="h-2 overflow-hidden rounded-full bg-slate-800">
+                    <div
+                      className="h-full rounded-full bg-purple-400"
+                      style={{
+                        width: `${getPercentage(
+                          item.count,
+                          maxCategoryCount
+                        )}%`,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
-          {hotspot.alert_count} alerts · {hotspot.critical_alerts} critical ·{" "}
-          {formatAnalyticsLabel(hotspot.dominant_category)}
-        </p>
+          <div className="mt-4 rounded-xl border border-red-500/20 bg-slate-900 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-red-300">
+              Top Risk Alerts
+            </p>
 
-        <p className="mt-1 text-[9px] text-slate-500">
-          Center: {hotspot.center_latitude.toFixed(3)},{" "}
-          {hotspot.center_longitude.toFixed(3)}
-        </p>
-      </button>
-    ))}
+            <div className="mt-3 space-y-2">
+              {topRiskAlerts.map((alert, index) => (
+                <div
+                  key={alert.id}
+                  className="rounded-lg border border-slate-800 bg-slate-950 p-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-red-400/10 px-2 py-0.5 text-[9px] font-bold text-red-300">
+                      #{index + 1}
+                    </span>
 
-    {riskHotspots.length === 0 && (
-      <p className="text-[11px] text-slate-500">
-        No dense risk hotspots detected at the current radius.
-      </p>
-    )}
-  </div>
-</div>
-<div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-900 p-3">
-  <p className="text-[10px] uppercase tracking-widest text-emerald-300">
-    District Risk Ranking
-  </p>
+                    <span className="text-[10px] font-bold text-red-300">
+                      {Math.round(alert.risk_score)}/100
+                    </span>
+                  </div>
 
-  <div className="mt-3 space-y-2">
-    {topDistricts.map((district) => (
-      <div
-        key={district.district}
-        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
-      >
-        <div className="flex items-center justify-between gap-2">
-          <p className="truncate text-[11px] font-semibold uppercase text-slate-200">
-            {district.district}
-          </p>
+                  <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
+                    {alert.title}
+                  </p>
 
-          <span className="text-[10px] font-bold text-emerald-300">
-            {Math.round(district.average_risk_score)}
-          </span>
-        </div>
+                  <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
+                    {formatAnalyticsLabel(alert.source)} · {alert.category}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
 
-        <p className="mt-1 text-[9px] text-slate-500">
-          {district.count} alerts · {district.critical_alerts} critical
-        </p>
-      </div>
-    ))}
-  </div>
-</div>
+          <div className="mt-4 rounded-xl border border-orange-500/20 bg-slate-900 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-orange-300">
+              Top Risk Hotspots
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {riskHotspots.map((hotspot, index) => (
+                <button
+                  key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
+                  onClick={() => setSelectedHotspotIndex(index)}
+                  className={`w-full rounded-lg border p-2 text-left transition ${
+                    selectedHotspotIndex === index
+                      ? "border-orange-400 bg-orange-400/10"
+                      : "border-slate-800 bg-slate-950 hover:border-orange-400/50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="rounded-full bg-orange-400/10 px-2 py-0.5 text-[9px] font-bold text-orange-300">
+                      Zone #{index + 1}
+                    </span>
+
+                    <span className="text-[10px] font-bold text-orange-300">
+                      {Math.round(hotspot.average_risk_score)}/100
+                    </span>
+                  </div>
+
+                  <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
+                    {hotspot.top_alert_title}
+                  </p>
+
+                  <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
+                    {hotspot.alert_count} alerts · {hotspot.critical_alerts}{" "}
+                    critical · {formatAnalyticsLabel(hotspot.dominant_category)}
+                  </p>
+
+                  <p className="mt-1 text-[9px] text-slate-500">
+                    Center: {hotspot.center_latitude.toFixed(3)},{" "}
+                    {hotspot.center_longitude.toFixed(3)}
+                  </p>
+                </button>
+              ))}
+
+              {riskHotspots.length === 0 && (
+                <p className="text-[11px] text-slate-500">
+                  No dense risk hotspots detected at the current radius.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-900 p-3">
+            <p className="text-[10px] uppercase tracking-widest text-emerald-300">
+              District Risk Ranking
+            </p>
+
+            <div className="mt-3 space-y-2">
+              {topDistricts.map((district) => (
+                <div
+                  key={district.district}
+                  className="rounded-lg border border-slate-800 bg-slate-950 p-2"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-[11px] font-semibold uppercase text-slate-200">
+                      {district.district}
+                    </p>
+
+                    <span className="text-[10px] font-bold text-emerald-300">
+                      {Math.round(district.average_risk_score)}
+                    </span>
+                  </div>
+
+                  <p className="mt-1 text-[9px] text-slate-500">
+                    {district.count} alerts · {district.critical_alerts} critical
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div className="mt-4 space-y-2 pr-2">
             {filteredAlerts.slice(0, 30).map((alert) => (
@@ -643,6 +771,18 @@ const topDistricts = districtRisk.slice(0, 5);
                   <span className="rounded-full bg-slate-800 px-2 py-1 text-[9px] font-semibold uppercase text-slate-400">
                     Risk {Math.round(alert.risk_score)}/100
                   </span>
+
+                  <span
+                    className={`rounded-full px-2 py-1 text-[9px] font-semibold uppercase ${
+                      alert.status === "active"
+                        ? "bg-emerald-500/15 text-emerald-300"
+                        : alert.status === "resolved"
+                        ? "bg-slate-500/15 text-slate-300"
+                        : "bg-yellow-500/15 text-yellow-300"
+                    }`}
+                  >
+                    {alert.status}
+                  </span>
                 </div>
 
                 <h3 className="text-[12px] font-semibold leading-snug text-white">
@@ -657,14 +797,25 @@ const topDistricts = districtRisk.slice(0, 5);
                   {alert.category} · {formatAlertDate(alert.created_at)}
                 </p>
 
-                <button
-                  onClick={() => handleToggleExplanation(alert.id)}
-                  className="mt-3 rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
-                >
-                  {openExplanationId === alert.id
-                    ? "Hide explanation"
-                    : "Why this risk?"}
-                </button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleToggleExplanation(alert.id)}
+                    className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-cyan-300 transition hover:bg-cyan-400 hover:text-slate-950"
+                  >
+                    {openExplanationId === alert.id
+                      ? "Hide explanation"
+                      : "Why this risk?"}
+                  </button>
+
+                  {alert.status === "active" && (
+                    <button
+                      onClick={() => handleResolveAlert(alert.id)}
+                      className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wide text-red-300 transition hover:bg-red-400 hover:text-slate-950"
+                    >
+                      Mark Resolved
+                    </button>
+                  )}
+                </div>
 
                 {openExplanationId === alert.id && (
                   <div className="mt-3 rounded-lg border border-slate-700 bg-slate-950/80 p-3">

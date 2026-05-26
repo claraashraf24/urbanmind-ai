@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from math import radians, sin, cos, sqrt, atan2
+from app.services.briefing_engine import generate_city_briefing
 
 from app.database import get_db
 from app.models.city_alert import CityAlert
@@ -349,3 +350,13 @@ def get_risk_hotspots(
     )
 
     return hotspots[:limit]
+
+@router.get("/briefing")
+def get_city_briefing(db: Session = Depends(get_db)):
+    alerts = (
+        db.query(CityAlert)
+        .filter(CityAlert.status == "active")
+        .all()
+    )
+
+    return generate_city_briefing(alerts)

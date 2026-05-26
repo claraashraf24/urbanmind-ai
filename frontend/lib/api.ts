@@ -10,6 +10,8 @@ export type CityAlert = {
   source: string;
   risk_score: number;
   created_at: string;
+  status: string;
+  resolved_at?: string | null;
   raw_payload?: Record<string, unknown> | null;
 };
 
@@ -72,6 +74,20 @@ export type RiskHotspot = {
   radius_km: number;
 };
 
+
+export type CityBriefing = {
+  headline: string;
+  summary: string;
+  key_drivers: string[];
+  recommended_actions: string[];
+  risk_level: string;
+  total_alerts: number;
+  critical_alerts: number;
+  high_alerts: number;
+  average_risk_score: number;
+};
+
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -80,6 +96,7 @@ export async function fetchCityAlerts(params?: {
   category?: string;
   severity?: string;
   limit?: number;
+  status?: string;
 }): Promise<CityAlert[]> {
   const searchParams = new URLSearchParams();
 
@@ -87,6 +104,7 @@ export async function fetchCityAlerts(params?: {
   if (params?.category) searchParams.set("category", params.category);
   if (params?.severity) searchParams.set("severity", params.severity);
   if (params?.limit) searchParams.set("limit", String(params.limit));
+  if (params?.status) searchParams.set("status", params.status);
 
   const query = searchParams.toString();
 
@@ -223,6 +241,18 @@ export async function fetchRiskHotspots(
 
   if (!response.ok) {
     throw new Error("Failed to fetch risk hotspots");
+  }
+
+  return response.json();
+}
+
+export async function fetchCityBriefing(): Promise<CityBriefing> {
+  const response = await fetch(`${API_BASE_URL}/api/analytics/briefing`, {
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch city briefing");
   }
 
   return response.json();
