@@ -89,6 +89,9 @@ export default function CommandCenter({
   const [sourceFilter, setSourceFilter] = useState("all");
   const [severityFilter, setSeverityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [selectedHotspotIndex, setSelectedHotspotIndex] = useState<number | null>(
+  null
+);
 
   const [openExplanationId, setOpenExplanationId] = useState<number | null>(
     null
@@ -295,7 +298,11 @@ const topDistricts = districtRisk.slice(0, 5);
             </div>
           </div>
 
-          <CityMap alerts={filteredAlerts} hotspots={riskHotspots} />
+          <CityMap
+  alerts={filteredAlerts}
+  hotspots={riskHotspots}
+  selectedHotspotIndex={selectedHotspotIndex}
+/>
         </section>
 
         <aside className="h-full overflow-y-auto rounded-2xl border border-cyan-500/20 bg-slate-950 p-5 shadow-2xl">
@@ -537,10 +544,15 @@ const topDistricts = districtRisk.slice(0, 5);
 
   <div className="mt-3 space-y-2">
     {riskHotspots.map((hotspot, index) => (
-      <div
-        key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
-        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
-      >
+      <button
+  key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
+  onClick={() => setSelectedHotspotIndex(index)}
+  className={`w-full rounded-lg border p-2 text-left transition ${
+    selectedHotspotIndex === index
+      ? "border-orange-400 bg-orange-400/10"
+      : "border-slate-800 bg-slate-950 hover:border-orange-400/50"
+  }`}
+>
         <div className="flex items-center justify-between gap-2">
           <span className="rounded-full bg-orange-400/10 px-2 py-0.5 text-[9px] font-bold text-orange-300">
             Zone #{index + 1}
@@ -564,7 +576,7 @@ const topDistricts = districtRisk.slice(0, 5);
           Center: {hotspot.center_latitude.toFixed(3)},{" "}
           {hotspot.center_longitude.toFixed(3)}
         </p>
-      </div>
+      </button>
     ))}
 
     {riskHotspots.length === 0 && (

@@ -3,12 +3,21 @@
 import "leaflet/dist/leaflet.css";
 
 import L from "leaflet";
-import { Circle, MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import { useEffect } from "react";
+import {
+  Circle,
+  MapContainer,
+  Marker,
+  Popup,
+  TileLayer,
+  useMap,
+} from "react-leaflet";
 import type { CityAlert, RiskHotspot } from "@/lib/api";
 
 type Props = {
   alerts: CityAlert[];
   hotspots: RiskHotspot[];
+  selectedHotspotIndex: number | null;
 };
 
 function getSeverityColor(severity: string) {
@@ -80,8 +89,29 @@ function createRiskIcon(alert: CityAlert) {
   });
 }
 
-export default function CityMap({ alerts, hotspots }: Props) {
+function HotspotFocus({ hotspot }: { hotspot: RiskHotspot | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!hotspot) return;
+
+    map.flyTo([hotspot.center_latitude, hotspot.center_longitude], 14, {
+      duration: 1.2,
+    });
+  }, [hotspot, map]);
+
+  return null;
+}
+
+export default function CityMap({
+  alerts,
+  hotspots,
+  selectedHotspotIndex,
+}: Props) {
   const torontoCenter: [number, number] = [43.6532, -79.3832];
+
+  const selectedHotspot =
+    selectedHotspotIndex !== null ? hotspots[selectedHotspotIndex] : null;
 
   return (
     <div className="relative h-full w-full overflow-hidden rounded-2xl border border-cyan-500/20">
@@ -95,6 +125,8 @@ export default function CityMap({ alerts, hotspots }: Props) {
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        <HotspotFocus hotspot={selectedHotspot || null} />
 
         {hotspots.map((hotspot, index) => {
           const color = getHotspotColor(hotspot.average_risk_score);
@@ -110,9 +142,9 @@ export default function CityMap({ alerts, hotspots }: Props) {
               pathOptions={{
                 color,
                 fillColor: color,
-                fillOpacity: 0.18,
-                opacity: 0.65,
-                weight: 2,
+                fillOpacity: selectedHotspotIndex === index ? 0.28 : 0.18,
+                opacity: selectedHotspotIndex === index ? 0.95 : 0.65,
+                weight: selectedHotspotIndex === index ? 4 : 2,
               }}
             >
               <Popup>
@@ -155,9 +187,7 @@ export default function CityMap({ alerts, hotspots }: Props) {
               <div style={{ maxWidth: "260px" }}>
                 <strong>{alert.title}</strong>
 
-                <p style={{ margin: "8px 0 4px" }}>
-                  {alert.description}
-                </p>
+                <p style={{ margin: "8px 0 4px" }}>{alert.description}</p>
 
                 <p style={{ margin: "4px 0" }}>
                   <strong>Source:</strong> {formatSource(alert.source)}
