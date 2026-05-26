@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import func
+from math import radians, sin, cos, sqrt, atan2
 
 from app.database import get_db
 from app.models.city_alert import CityAlert
@@ -169,6 +170,22 @@ def get_district_risk(db: Session = Depends(get_db)):
         reverse=True,
     )
 
+def calculate_distance_km(lat1, lon1, lat2, lon2):
+    radius = 6371
+
+    dlat = radians(lat2 - lat1)
+    dlon = radians(lon2 - lon1)
+
+    a = (
+        sin(dlat / 2) ** 2
+        + cos(radians(lat1))
+        * cos(radians(lat2))
+        * sin(dlon / 2) ** 2
+    )
+
+    c = 2 * atan2(sqrt(a), sqrt(1 - a))
+
+    return radius * c
 
 @router.get("/risk-summary")
 def get_risk_summary(db: Session = Depends(get_db)):
@@ -226,3 +243,104 @@ def get_risk_summary(db: Session = Depends(get_db)):
         "top_category": top_category[0] if top_category else None,
         "average_risk_score": round(average_risk or 0, 2),
     }
+
+@router.get("/risk-hotspots")
+def get_risk_hotspots(
+    radius_km: float = 1.0,
+    limit: int = 10,
+    db: Session = Depends(get_db),
+):
+    alerts = (
+        db.query(CityAlert)
+        .filter(CityAlert.risk_score >= 60)
+        .all()
+    )
+
+    hotspots = []
+    used_alert_ids = set()
+
+    sorted_alerts = sorted(
+        alerts,
+        key=lambda alert: alert.risk_score or 0,
+        reverse=True,
+    )
+
+    for alert in sorted_alerts:
+        if alert.id in used_alert_ids:
+            continue
+
+        nearby_alerts = []
+
+        for candidate in alerts:
+            distance = calculate_distance_km(
+                alert.latitude,
+                alert.longitude,
+                candidate.latitude,
+                candidate.longitude,
+            )
+
+            if distance <= radius_km:
+                nearby_alerts.append(candidate)
+
+        if len(nearby_alerts) < 2:
+            continue
+
+        for nearby in nearby_alerts:
+            used_alert_ids.add(nearby.id)
+
+        average_latitude = sum(item.latitude for item in nearby_alerts) / len(
+            nearby_alerts
+        )
+        average_longitude = sum(item.longitude for item in nearby_alerts) / len(
+            nearby_alerts
+        )
+
+        average_risk_score = sum(
+            item.risk_score or 0 for item in nearby_alerts
+        ) / len(nearby_alerts)
+
+        critical_alerts = sum(
+            1 for item in nearby_alerts if item.severity == "critical"
+        )
+
+        top_alert = max(
+            nearby_alerts,
+            key=lambda item: item.risk_score or 0,
+        )
+
+        categories = {}
+        sources = {}
+
+        for item in nearby_alerts:
+            categories[item.category] = categories.get(item.category, 0) + 1
+            sources[item.source] = sources.get(item.source, 0) + 1
+
+        dominant_category = max(categories.items(), key=lambda item: item[1])[0]
+        dominant_source = max(sources.items(), key=lambda item: item[1])[0]
+
+        hotspots.append(
+            {
+                "center_latitude": round(average_latitude, 6),
+                "center_longitude": round(average_longitude, 6),
+                "alert_count": len(nearby_alerts),
+                "critical_alerts": critical_alerts,
+                "average_risk_score": round(average_risk_score, 2),
+                "dominant_category": dominant_category,
+                "dominant_source": dominant_source,
+                "top_alert_id": top_alert.id,
+                "top_alert_title": top_alert.title,
+                "radius_km": radius_km,
+            }
+        )
+
+    hotspots = sorted(
+        hotspots,
+        key=lambda item: (
+            item["average_risk_score"],
+            item["critical_alerts"],
+            item["alert_count"],
+        ),
+        reverse=True,
+    )
+
+    return hotspots[:limit]

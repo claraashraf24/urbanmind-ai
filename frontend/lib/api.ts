@@ -59,6 +59,19 @@ export type RiskSummary = {
   average_risk_score: number;
 };
 
+export type RiskHotspot = {
+  center_latitude: number;
+  center_longitude: number;
+  alert_count: number;
+  critical_alerts: number;
+  average_risk_score: number;
+  dominant_category: string;
+  dominant_source: string;
+  top_alert_id: number;
+  top_alert_title: string;
+  radius_km: number;
+};
+
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000";
 
@@ -199,3 +212,18 @@ export async function fetchRiskSummary(): Promise<RiskSummary> {
   return response.json();
 }
 
+export async function fetchRiskHotspots(
+  radiusKm = 1,
+  limit = 5
+): Promise<RiskHotspot[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/api/analytics/risk-hotspots?radius_km=${radiusKm}&limit=${limit}`,
+    { cache: "no-store" }
+  );
+
+  if (!response.ok) {
+    throw new Error("Failed to fetch risk hotspots");
+  }
+
+  return response.json();
+}

@@ -7,6 +7,7 @@ import type {
   CityOverview,
   DistrictRiskItem,
   RiskExplanation,
+  RiskHotspot,
   RiskSummary,
   SourceDistributionItem,
   TopRiskAlert,
@@ -26,6 +27,7 @@ type Props = {
   topRiskAlerts: TopRiskAlert[];
   districtRisk: DistrictRiskItem[];
   riskSummary: RiskSummary;
+  riskHotspots: RiskHotspot[];
 };
 
 function formatSource(source: string) {
@@ -79,6 +81,7 @@ export default function CommandCenter({
   topRiskAlerts,
   districtRisk,
   riskSummary,
+  riskHotspots,
 }: Props) {
   const [liveAlerts, setLiveAlerts] = useState<CityAlert[]>(alerts);
   const [cityOverview, setCityOverview] = useState<CityOverview>(overview);
@@ -499,6 +502,7 @@ const topDistricts = districtRisk.slice(0, 5);
     Top Risk Alerts
   </p>
 
+
   <div className="mt-3 space-y-2">
     {topRiskAlerts.map((alert, index) => (
       <div
@@ -524,6 +528,50 @@ const topDistricts = districtRisk.slice(0, 5);
         </p>
       </div>
     ))}
+  </div>
+</div>
+<div className="mt-4 rounded-xl border border-orange-500/20 bg-slate-900 p-3">
+  <p className="text-[10px] uppercase tracking-widest text-orange-300">
+    Top Risk Hotspots
+  </p>
+
+  <div className="mt-3 space-y-2">
+    {riskHotspots.map((hotspot, index) => (
+      <div
+        key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
+        className="rounded-lg border border-slate-800 bg-slate-950 p-2"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <span className="rounded-full bg-orange-400/10 px-2 py-0.5 text-[9px] font-bold text-orange-300">
+            Zone #{index + 1}
+          </span>
+
+          <span className="text-[10px] font-bold text-orange-300">
+            {Math.round(hotspot.average_risk_score)}/100
+          </span>
+        </div>
+
+        <p className="mt-2 line-clamp-2 text-[11px] font-semibold leading-snug text-slate-200">
+          {hotspot.top_alert_title}
+        </p>
+
+        <p className="mt-1 text-[9px] uppercase tracking-wide text-slate-500">
+          {hotspot.alert_count} alerts · {hotspot.critical_alerts} critical ·{" "}
+          {formatAnalyticsLabel(hotspot.dominant_category)}
+        </p>
+
+        <p className="mt-1 text-[9px] text-slate-500">
+          Center: {hotspot.center_latitude.toFixed(3)},{" "}
+          {hotspot.center_longitude.toFixed(3)}
+        </p>
+      </div>
+    ))}
+
+    {riskHotspots.length === 0 && (
+      <p className="text-[11px] text-slate-500">
+        No dense risk hotspots detected at the current radius.
+      </p>
+    )}
   </div>
 </div>
 <div className="mt-4 rounded-xl border border-emerald-500/20 bg-slate-900 p-3">

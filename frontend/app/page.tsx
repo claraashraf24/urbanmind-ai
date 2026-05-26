@@ -4,6 +4,7 @@ import {
   fetchCityAlerts,
   fetchCityOverview,
   fetchDistrictRisk,
+  fetchRiskHotspots,
   fetchRiskSummary,
   fetchSourceDistribution,
   fetchTopRiskAlerts,
@@ -18,6 +19,7 @@ export default async function Home() {
     topRiskAlerts,
     districtRisk,
     riskSummary,
+    riskHotspots,
   ] = await Promise.all([
     fetchCityAlerts({ limit: 200 }),
     fetchCityOverview(),
@@ -26,6 +28,7 @@ export default async function Home() {
     fetchTopRiskAlerts(5),
     fetchDistrictRisk(),
     fetchRiskSummary(),
+    fetchRiskHotspots(1, 5),
   ]);
 
   return (
@@ -37,6 +40,7 @@ export default async function Home() {
       topRiskAlerts={topRiskAlerts}
       districtRisk={districtRisk}
       riskSummary={riskSummary}
+      riskHotspots={riskHotspots}
     />
   );
 }

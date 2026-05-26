@@ -75,7 +75,6 @@ def normalize_record(record):
 
     start_time = format_millis_timestamp(start_time_raw)
     end_time = format_millis_timestamp(end_time_raw)
-    end_time = first_available(record, ["EndTime"], "")
     external_id = first_available(record, ["ID"], None)
     
 
