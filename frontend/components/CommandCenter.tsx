@@ -295,7 +295,7 @@ const topDistricts = districtRisk.slice(0, 5);
             </div>
           </div>
 
-          <CityMap alerts={filteredAlerts} />
+          <CityMap alerts={filteredAlerts} hotspots={riskHotspots} />
         </section>
 
         <aside className="h-full overflow-y-auto rounded-2xl border border-cyan-500/20 bg-slate-950 p-5 shadow-2xl">

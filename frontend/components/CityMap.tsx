@@ -3,11 +3,12 @@
 import "leaflet/dist/leaflet.css";
 
 import L from "leaflet";
-import { MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
-import type { CityAlert } from "@/lib/api";
+import { Circle, MapContainer, Marker, Popup, TileLayer } from "react-leaflet";
+import type { CityAlert, RiskHotspot } from "@/lib/api";
 
 type Props = {
   alerts: CityAlert[];
+  hotspots: RiskHotspot[];
 };
 
 function getSeverityColor(severity: string) {
@@ -22,6 +23,20 @@ function getMarkerSize(riskScore: number) {
   if (riskScore >= 75) return 28;
   if (riskScore >= 60) return 22;
   return 18;
+}
+
+function getHotspotColor(score: number) {
+  if (score >= 90) return "#ef4444";
+  if (score >= 75) return "#f97316";
+  if (score >= 60) return "#eab308";
+  return "#22d3ee";
+}
+
+function getHotspotRadiusMeters(alertCount: number, radiusKm: number) {
+  const baseRadius = radiusKm * 1000;
+  const densityBoost = Math.min(alertCount * 60, 500);
+
+  return baseRadius + densityBoost;
 }
 
 function formatSource(source: string) {
@@ -65,7 +80,7 @@ function createRiskIcon(alert: CityAlert) {
   });
 }
 
-export default function CityMap({ alerts }: Props) {
+export default function CityMap({ alerts, hotspots }: Props) {
   const torontoCenter: [number, number] = [43.6532, -79.3832];
 
   return (
@@ -80,6 +95,55 @@ export default function CityMap({ alerts }: Props) {
           attribution='&copy; OpenStreetMap contributors'
           url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
+
+        {hotspots.map((hotspot, index) => {
+          const color = getHotspotColor(hotspot.average_risk_score);
+
+          return (
+            <Circle
+              key={`${hotspot.center_latitude}-${hotspot.center_longitude}-${index}`}
+              center={[hotspot.center_latitude, hotspot.center_longitude]}
+              radius={getHotspotRadiusMeters(
+                hotspot.alert_count,
+                hotspot.radius_km
+              )}
+              pathOptions={{
+                color,
+                fillColor: color,
+                fillOpacity: 0.18,
+                opacity: 0.65,
+                weight: 2,
+              }}
+            >
+              <Popup>
+                <div style={{ maxWidth: "260px" }}>
+                  <strong>Risk Hotspot Zone #{index + 1}</strong>
+
+                  <p style={{ margin: "8px 0 4px" }}>
+                    {hotspot.top_alert_title}
+                  </p>
+
+                  <p style={{ margin: "4px 0" }}>
+                    <strong>Average risk:</strong>{" "}
+                    {Math.round(hotspot.average_risk_score)}/100
+                  </p>
+
+                  <p style={{ margin: "4px 0" }}>
+                    <strong>Alerts:</strong> {hotspot.alert_count}
+                  </p>
+
+                  <p style={{ margin: "4px 0" }}>
+                    <strong>Critical:</strong> {hotspot.critical_alerts}
+                  </p>
+
+                  <p style={{ margin: "4px 0" }}>
+                    <strong>Category:</strong> {hotspot.dominant_category}
+                  </p>
+                </div>
+              </Popup>
+            </Circle>
+          );
+        })}
 
         {alerts.map((alert) => (
           <Marker
@@ -132,10 +196,19 @@ export default function CityMap({ alerts }: Props) {
             <span className="h-3 w-3 rounded-full bg-cyan-300" />
             <span>Medium</span>
           </div>
+
+          <div className="mt-2 flex items-center gap-2 border-t border-slate-700 pt-2">
+            <span className="h-3 w-3 rounded-full border border-orange-400 bg-orange-400/30" />
+            <span>Hotspot zone</span>
+          </div>
         </div>
 
         <p className="mt-2 text-[10px] text-slate-500">
           Marker size follows risk score
+        </p>
+
+        <p className="mt-1 text-[10px] text-slate-500">
+          Transparent circles show hotspot zones
         </p>
       </div>
     </div>
