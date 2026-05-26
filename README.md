@@ -10,13 +10,13 @@ The goal of this project is to go beyond a normal dashboard. UrbanMind AI turns 
 
 ### Command Center Overview
 
-> Add your main dashboard screenshot here.
+
 
 ![UrbanMind AI Command Center](docs/screenshots/dashboard-overview.png)
 
 ### AI Incident Briefing and Hotspot Map
 
-> Add your AI briefing / hotspot map screenshot here.
+
 
 ![AI Incident Briefing and Hotspot Map](docs/screenshots/ai-incident-briefing.png)
 
