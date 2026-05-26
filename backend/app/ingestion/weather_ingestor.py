@@ -1,5 +1,6 @@
 import requests
 from datetime import datetime, timezone
+
 from app.services.risk_engine import calculate_city_event_risk
 
 
@@ -42,8 +43,12 @@ def get_weather_risk_alerts():
             severity = "medium"
             title = "Moderate weather risk detected"
 
-        if severity:
-            event = {
+        # Important: skip normal weather hours.
+        # This prevents the "event not associated with a value" error.
+        if not severity:
+            continue
+
+        event = {
             "source": "open-meteo",
             "category": "weather",
             "severity": severity,
@@ -81,13 +86,17 @@ if __name__ == "__main__":
         print(f"Collected {len(alerts)} weather alerts.")
 
         if not alerts:
-            print("No risky weather alerts right now. This means the API worked, but current forecast conditions are normal.")
+            print(
+                "No risky weather alerts right now. "
+                "This means the API worked, but current forecast conditions are normal."
+            )
 
         for alert in alerts[:5]:
             print("----")
             print("Source:", alert["source"])
             print("Category:", alert["category"])
             print("Severity:", alert["severity"])
+            print("Risk Score:", alert["risk_score"])
             print("Title:", alert["title"])
             print("Description:", alert["description"])
 
